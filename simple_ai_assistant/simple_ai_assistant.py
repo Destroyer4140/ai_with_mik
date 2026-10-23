@@ -1,8 +1,13 @@
-from openai import OpenAI
+# standard library imports
 import os
-import json
+
+# third party imports
+from openai import OpenAI
 from dotenv import load_dotenv
-from tools import TOOLS, FUNCTION_NAME_TO_FUNCTION_MAP
+
+# local modules
+from Utilities.utilities import log
+from tools import TOOLS, run_tool
 
 load_dotenv();
 
@@ -22,7 +27,7 @@ messages.append(
 )
 
 while True: 
-  user_input = input("You: ")
+  user_input = input("🧔🏻You: ")
   if user_input.lower() in ["exit", "quit", "bye", "goodbye"]: 
     break
 
@@ -33,41 +38,44 @@ while True:
     }
   )
 
-  response = client.chat.completions.create(
-    model=os.getenv("LLM_MODEL"),
-    messages=messages,
-    tools=TOOLS
-  )
-
-  print("Assistant (raw): " + str(response))
-  msg = response.choices[0].message
-  if msg.tool_calls:
+  for step in range(MAX_STEP):
+    response = client.chat.completions.create(
+      model=os.getenv("LLM_MODEL"),
+      messages=messages,
+      tools=TOOLS
+    )
+    msg = response.choices[0].message
     messages.append(msg)
 
-    for tool_call in msg.tool_calls:
-      func_name = tool_call.function.name
-      func_args = json.loads(tool_call.function.arguments or '{}')
+    if not msg.tool_calls: 
+      break
+    
+    log(f"Step : {step+1}: model requested {len(msg.tool_calls)} tool calls")
 
-      fn = FUNCTION_NAME_TO_FUNCTION_MAP[func_name]
-      result = fn(**func_args)
+    for tool_call in msg.tool_calls:
+      result = run_tool(tool_call)
       messages.append({
         "role": "tool",
         "tool_id": tool_call.id,
         "content": str(result),
       })
-    
-    # 2nd call to LLM api
-    response = client.chat.completions.create(
-      model=os.getenv("LLM_MODEL"),
-      messages=messages
-    )
+  else:
+    # Ran out of steps: The model never gave the final answer
+    fallback = "Sorry, I couldn't finish this within the step limit. "
+    messages.append({
+      "role": "assistant",
+      "content": fallback
+    })
+    print("🤖Assistant: " + fallback)
+    continue
 
-    msg = response.choices[0].message
+    
+ # Removed second LLM API call as loop is already added.
   
   messages.append({
     "role": "assistant",
     "content": msg.content
   })
 
-  print("Asisstant: " +msg.content) #response from the LLM
+  print("🤖Asisstant: " +(msg.content or "")) #response from the LLM
 
