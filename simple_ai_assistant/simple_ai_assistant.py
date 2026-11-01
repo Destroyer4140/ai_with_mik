@@ -10,7 +10,7 @@ from types import SimpleNamespace
 from Utilities.utilities import log
 from tools import TOOLS, run_tool
 
-load_dotenv();
+load_dotenv()
 
 client = OpenAI(
   base_url=os.getenv("BASE_URL"),
@@ -62,7 +62,7 @@ def stream_chat(history):
       
       #2. Tool Calls
       for tool_call in  (delta.tool_calls or []):
-        obj = calls.setDefault(
+        obj = calls.setdefault(
           tool_call.index,
           SimpleNamespace(id=None, function=SimpleNamespace(name="", arguments="")),
         )
@@ -78,6 +78,7 @@ def stream_chat(history):
 
   if label_printed:
     print() # move to the next line after the assistant's response
+  
   calls_list = []
   for key in sorted(calls):
     calls_list.append(calls[key])
@@ -85,9 +86,8 @@ def stream_chat(history):
 
 def build_tool_calls_payload(tool_calls):
   """
-  Converts out collected tool calls into the dictonary format that the API expects inside an assistant message
+  Converts out collected tool calls into the dictionary format that the API expects inside an assistant message
   """
-
   payload = []
   for tool_call in tool_calls:
     tool_call_dict = {
@@ -119,24 +119,24 @@ while True:
     
     full_response, tool_calls = stream_chat(messages)
 
-    # msg = response.choices[0].message
-
     if not tool_calls: 
       break
     
     log(f"Step : {step+1}: model requested {len(tool_calls)} tool calls")
 
+    # Append assistant's tool call request
     messages.append({
       "role": "assistant",
-      "content": full_response,
+      "content": full_response or None, # OpenAI prefers None if content is empty during a tool call
       "tool_calls": build_tool_calls_payload(tool_calls)
     })
 
+    # Execute tools and append results
     for tool_call in tool_calls:
       result = run_tool(tool_call)
       messages.append({
         "role": "tool",
-        "tool_id": tool_call.id,
+        "tool_call_id": tool_call.id, # FIXED: Changed from tool_id to tool_call_id
         "content": str(result),
       })
   else:
@@ -149,12 +149,7 @@ while True:
     print("🤖Assistant: " + fallback)
     continue
 
-    
- # Removed second LLM API call as loop is already added.
-  
   messages.append({
     "role": "assistant",
     "content": full_response
   })
-
-
