@@ -7,6 +7,7 @@ from datetime import datetime
 
 # local modules
 from Utilities.utilities import log
+from rag import search
 
 def get_current_time():
   return datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -32,6 +33,26 @@ def run_tool(tool_call):
     result = f"Error while running {func_name}: {e}"
   log(f"  ↪  {result}")
   return str(result)
+
+def search_knowledge_base(query):
+    results = search(query, top_k=2)
+    print(f"results :- {results}")
+
+    log(f"📚 Knowledge base search: {query}")
+    for r in results:
+        log(f"   {r['score']:.2f} - {r['source']} #{r['chunk_id']}")
+
+    blocks = []
+    for r in results:
+        sourceFileName = r['source']
+        chunkId        = r['chunk_id']
+        chunkText      = r['text']
+
+        header = f"[{sourceFileName} #{chunkId}]"
+        block  = f"{header}\n{chunkText}"
+        blocks.append(block)
+
+    return "\n\n".join(blocks)
 
 #TOOLS
 TOOLS = [
@@ -73,11 +94,29 @@ TOOLS = [
         "properties": {}
       }
     }
+  },
+  {
+    "type": "function",
+    "function": {
+      "name": "search_knowledge_base",
+      "description": "Searches the Zorvex Technologies company knowledge base: leave, mdeical, HR, hiring, tech, incident reports and travel expense policies. Use it for any question about company policies or documents. Returns the most relevant passages with their source.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "query": {
+            "type": "string",
+            "description": "The user's question, rewritten as short, self-contained search query.",
+          }
+        },
+        "required": ["query"],
+      },
+    }
   }
 ]
 
 FUNCTION_NAME_TO_FUNCTION_MAP = {
   "get_current_time": get_current_time,
   "get_city_weather": get_city_weather,
-  "get_user_city": get_user_city
+  "get_user_city": get_user_city,
+  "search_knowledge_base": search_knowledge_base
 }
